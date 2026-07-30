@@ -29,6 +29,21 @@ def test_log_redaction_removes_bearer_and_token_fields() -> None:
     assert "raw" not in str(record.args)
 
 
+def test_log_redaction_preserves_format_argument_types() -> None:
+    record = logging.LogRecord(
+        "httpx",
+        logging.INFO,
+        __file__,
+        1,
+        'HTTP Request: %s %s "%s %d %s"',
+        ("GET", "https://api.example/", "HTTP/1.1", 200, "OK"),
+        None,
+    )
+
+    assert SecretRedactionFilter().filter(record)
+    assert record.getMessage() == 'HTTP Request: GET https://api.example/ "HTTP/1.1 200 OK"'
+
+
 def test_icon_service_unifies_blocks_items_and_falls_back() -> None:
     root = Path(__file__).parents[1]
     icons = IconService(root / "manifest_detailed.json", root)
