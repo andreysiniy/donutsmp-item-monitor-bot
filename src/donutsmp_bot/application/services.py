@@ -47,7 +47,8 @@ class RuleNotFoundError(ValueError):
 @dataclass(frozen=True, slots=True)
 class AlertEvent:
     discord_user_id: int
-    rule_id: int
+    database_rule_id: int
+    display_rule_id: int
     item_id: str
     display_name: str
     condition: Condition
@@ -55,6 +56,12 @@ class AlertEvent:
     previous_price: Decimal | None
     current_price: Decimal
     snapshot: PriceSnapshot
+
+
+@dataclass(frozen=True, slots=True)
+class DisplayedRule:
+    display_id: int
+    rule: WatchRule
 
 
 class NotificationSender(Protocol):
@@ -130,6 +137,12 @@ class RuleProcessor:
             )
             repository = WatchRuleRepository(session)
             notification_repo = NotificationRepository(session)
+            display_ids = {
+                stored_rule.id: display_id
+                for display_id, stored_rule in enumerate(
+                    await repository.list_for_user(discord_user_id), start=1
+                )
+            }
             for rule_id in rule_ids:
                 rule = await repository.get_owned(discord_user_id, rule_id, lock=True)
                 if rule is None or not rule.enabled:
@@ -158,7 +171,8 @@ class RuleProcessor:
                         (
                             AlertEvent(
                                 discord_user_id=discord_user_id,
-                                rule_id=rule.id,
+                                database_rule_id=rule.id,
+                                display_rule_id=display_ids[rule.id],
                                 item_id=rule.item_id,
                                 display_name=rule.display_name,
                                 condition=rule.condition,
@@ -183,7 +197,7 @@ class RuleProcessor:
             logger.warning(
                 "Discord DM delivery failed user_id=%s rule_id=%s error=%s",
                 event.discord_user_id,
-                event.rule_id,
+                event.database_rule_id,
                 error_name,
             )
             async with self.session_factory.begin() as session:
@@ -221,7 +235,7 @@ class WatchService:
         condition: Condition,
         threshold: str | int | Decimal,
         price_type: PriceType,
-    ) -> tuple[WatchRule, PriceSnapshot]:
+    ) -> tuple[DisplayedRule, PriceSnapshot]:
         normalized_item_id = normalize_item_id(item_id)
         if not self.icons.contains(normalized_item_id):
             raise InvalidItemError("Unknown Minecraft item ID")
@@ -229,7 +243,8 @@ class WatchService:
 
         async with self.session_factory.begin() as session:
             user = await _require_valid_user(session, discord_user_id)
-            rule = await WatchRuleRepository(session).create(
+            repository = WatchRuleRepository(session)
+            rule = await repository.create(
                 discord_user_id=discord_user_id,
                 item_id=normalized_item_id,
                 display_name=self.icons.display_name(normalized_item_id),
@@ -238,6 +253,9 @@ class WatchService:
                 price_type=price_type,
                 hysteresis_percent=Decimal(str(self.settings.default_hysteresis_percent)),
                 cooldown_seconds=self.settings.default_notification_cooldown_seconds,
+            )
+            displayed_rule = _find_displayed_rule(
+                await repository.list_for_user(discord_user_id), rule.id
             )
             token = self.cipher.decrypt(user.encrypted_donut_token)
             fingerprint = user.token_fingerprint
@@ -260,22 +278,51 @@ class WatchService:
             snapshot=snapshot,
             notify_initial_rule_id=rule.id,
         )
-        return rule, snapshot
+        return displayed_rule, snapshot
 
-    async def list(self, discord_user_id: int) -> Sequence[WatchRule]:
+    async def list(self, discord_user_id: int) -> Sequence[DisplayedRule]:
         async with self.session_factory() as session:
             await _require_valid_user(session, discord_user_id)
-            return await WatchRuleRepository(session).list_for_user(discord_user_id)
+            rules = await WatchRuleRepository(session).list_for_user(discord_user_id)
+            return _number_rules(rules)
 
-    async def delete(self, discord_user_id: int, rule_id: int) -> bool:
+    async def delete(self, discord_user_id: int, display_id: int) -> bool:
         async with self.session_factory.begin() as session:
             await _require_valid_user(session, discord_user_id)
-            return await WatchRuleRepository(session).delete(discord_user_id, rule_id)
+            repository = WatchRuleRepository(session)
+            rule = _rule_by_display_id(
+                await repository.list_for_user(discord_user_id), display_id
+            )
+            if rule is None:
+                return False
+            return await repository.delete(discord_user_id, rule.id)
 
-    async def set_enabled(self, discord_user_id: int, rule_id: int, *, enabled: bool) -> bool:
+    async def set_enabled(
+        self, discord_user_id: int, display_id: int, *, enabled: bool
+    ) -> bool:
         async with self.session_factory.begin() as session:
             await _require_valid_user(session, discord_user_id)
-            return await WatchRuleRepository(session).set_enabled(discord_user_id, rule_id, enabled)
+            repository = WatchRuleRepository(session)
+            rule = _rule_by_display_id(
+                await repository.list_for_user(discord_user_id), display_id
+            )
+            if rule is None:
+                return False
+            return await repository.set_enabled(discord_user_id, rule.id, enabled)
+
+    async def delete_by_database_id(self, discord_user_id: int, database_id: int) -> bool:
+        async with self.session_factory.begin() as session:
+            await _require_valid_user(session, discord_user_id)
+            return await WatchRuleRepository(session).delete(discord_user_id, database_id)
+
+    async def set_enabled_by_database_id(
+        self, discord_user_id: int, database_id: int, *, enabled: bool
+    ) -> bool:
+        async with self.session_factory.begin() as session:
+            await _require_valid_user(session, discord_user_id)
+            return await WatchRuleRepository(session).set_enabled(
+                discord_user_id, database_id, enabled
+            )
 
 
 class PriceService:
@@ -324,3 +371,27 @@ def _positive_decimal(value: str | int | Decimal) -> Decimal:
     if not parsed.is_finite() or parsed <= 0:
         raise InvalidThresholdError("Threshold must be positive")
     return parsed
+
+
+def _number_rules(rules: Sequence[WatchRule]) -> list[DisplayedRule]:
+    return [
+        DisplayedRule(display_id=display_id, rule=rule)
+        for display_id, rule in enumerate(rules, start=1)
+    ]
+
+
+def _rule_by_display_id(
+    rules: Sequence[WatchRule], display_id: int
+) -> WatchRule | None:
+    if display_id < 1 or display_id > len(rules):
+        return None
+    return rules[display_id - 1]
+
+
+def _find_displayed_rule(
+    rules: Sequence[WatchRule], database_id: int
+) -> DisplayedRule:
+    for displayed_rule in _number_rules(rules):
+        if displayed_rule.rule.id == database_id:
+            return displayed_rule
+    raise RuleNotFoundError("Newly created rule was not found")
