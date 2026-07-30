@@ -44,6 +44,8 @@ async def test_get_with_json_body_paginates_and_filters_exact_item() -> None:
                         "id": "diamond",
                         "count": 5,
                         "display_name": "Diamond",
+                        "lore": None,
+                        "contents": None,
                     },
                     "price": 100001,
                     "seller": {"name": "Seller"},
@@ -73,6 +75,7 @@ async def test_get_with_json_body_paginates_and_filters_exact_item() -> None:
     assert snapshot.selected_price == Decimal("20000.2")
     assert snapshot.listing is not None
     assert snapshot.listing.seller.name == "Seller"
+    assert snapshot.listing.item.lore == []
     assert requests[0].method == "GET"
     assert requests[0].headers["Authorization"] == "Bearer private-token"
     assert json.loads(requests[0].content) == {
