@@ -7,17 +7,17 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from .api import (
+from ..core.config import Settings
+from ..core.enums import PriceType
+from ..core.security import TokenCipher, TokenDecryptionError
+from ..infrastructure.donut_api import (
     DonutApiClient,
     DonutAuthenticationError,
     DonutApiError,
 )
-from .config import Settings
-from .enums import PriceType
-from .models import User, WatchRule
-from .rate_limiter import calculate_poll_interval
-from .repositories import UserRepository
-from .security import TokenCipher, TokenDecryptionError
+from ..infrastructure.rate_limiter import calculate_poll_interval
+from ..persistence.models import User, WatchRule
+from ..persistence.repositories import UserRepository
 from .services import NotificationSender, RuleProcessor
 
 logger = logging.getLogger(__name__)

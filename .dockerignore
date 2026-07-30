@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.venv
+__pycache__
+*.py[cod]
+*.db
+*.sqlite*
+.coverage
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+tests
+ТЗ_DonutSMP_Discord_бот.md
+

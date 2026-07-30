@@ -6,23 +6,23 @@ from typing import Protocol
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from .api import (
+from ..core.config import Settings
+from ..core.enums import Condition, PriceType, TokenStatus
+from ..core.security import TokenCipher, token_fingerprint
+from ..domain.evaluator import evaluate_threshold
+from ..domain.schemas import PriceSnapshot
+from ..infrastructure.donut_api import (
     DonutApiClient,
     DonutAuthenticationError,
 )
-from .config import Settings
-from .enums import Condition, PriceType, TokenStatus
-from .evaluator import evaluate_threshold
-from .icons import IconService
-from .models import User, WatchRule
-from .repositories import (
+from ..infrastructure.icons import IconService
+from ..persistence.models import User, WatchRule
+from ..persistence.repositories import (
     NotificationRepository,
     ObservationRepository,
     UserRepository,
     WatchRuleRepository,
 )
-from .schemas import PriceSnapshot
-from .security import TokenCipher, TokenDecryptionError, token_fingerprint
 
 logger = logging.getLogger(__name__)
 

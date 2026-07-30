@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from .enums import PriceType
+from ..core.enums import PriceType
 
 
 class AuctionItem(BaseModel):

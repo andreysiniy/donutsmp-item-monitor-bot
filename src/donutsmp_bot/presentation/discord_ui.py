@@ -9,20 +9,8 @@ from discord import app_commands
 from discord.ext import commands
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from .api import (
-    DonutApiClient,
-    DonutAuthenticationError,
-    DonutRateLimitError,
-    DonutTransientError,
-    format_decimal_price,
-)
-from .enums import Condition, PriceType, TokenStatus
-from .icons import IconService
-from .models import WatchRule
-from .monitoring import MonitoringCoordinator
-from .repositories import UserRepository, WatchRuleRepository
-from .schemas import AuctionListing, PriceSnapshot
-from .services import (
+from ..application.monitoring import MonitoringCoordinator
+from ..application.services import (
     AlertEvent,
     AuthService,
     InvalidItemError,
@@ -32,6 +20,18 @@ from .services import (
     PriceService,
     WatchService,
 )
+from ..core.enums import Condition, PriceType, TokenStatus
+from ..domain.schemas import AuctionListing, PriceSnapshot
+from ..infrastructure.donut_api import (
+    DonutApiClient,
+    DonutAuthenticationError,
+    DonutRateLimitError,
+    DonutTransientError,
+    format_decimal_price,
+)
+from ..infrastructure.icons import IconService
+from ..persistence.models import WatchRule
+from ..persistence.repositories import UserRepository, WatchRuleRepository
 
 logger = logging.getLogger(__name__)
 

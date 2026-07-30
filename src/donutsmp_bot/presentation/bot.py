@@ -3,8 +3,8 @@ import logging
 import discord
 from discord.ext import commands
 
-from .api import DonutApiClient
-from .database import Database
+from ..infrastructure.donut_api import DonutApiClient
+from ..persistence.database import Database
 from .discord_ui import AppServices, DonutCommands
 
 logger = logging.getLogger(__name__)
