@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -48,7 +50,7 @@ class AppServices:
 
 
 class AuthModal(discord.ui.Modal, title="Авторизация DonutSMP"):
-    token = discord.ui.TextInput(
+    token: discord.ui.TextInput[AuthModal] = discord.ui.TextInput(
         label="Bearer-токен",
         placeholder="Вставьте токен DonutSMP",
         required=True,
@@ -70,7 +72,9 @@ class AuthModal(discord.ui.Modal, title="Авторизация DonutSMP"):
             )
         except DonutRateLimitError as exc:
             await interaction.edit_original_response(
-                content=f"DonutSMP временно ограничил запросы. Повторите через {exc.retry_after:.0f} с."
+                content=(
+                    f"DonutSMP временно ограничил запросы. Повторите через {exc.retry_after:.0f} с."
+                )
             )
         except DonutTransientError:
             await interaction.edit_original_response(
@@ -149,12 +153,8 @@ class AlertActionsView(discord.ui.View):
         style=discord.ButtonStyle.secondary,
         custom_id="donutsmp:pause",
     )
-    async def pause(
-        self, interaction: discord.Interaction, button: discord.ui.Button[Any]
-    ) -> None:
-        changed = await self.watches.set_enabled(
-            self.owner_id, self.rule_id, enabled=False
-        )
+    async def pause(self, interaction: discord.Interaction, button: discord.ui.Button[Any]) -> None:
+        changed = await self.watches.set_enabled(self.owner_id, self.rule_id, enabled=False)
         button.disabled = True
         await interaction.response.edit_message(view=self)
         await interaction.followup.send(
@@ -188,13 +188,9 @@ class AlertActionsView(discord.ui.View):
     ) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            snapshot = await self.prices.get(
-                self.owner_id, self.item_id, self.price_type
-            )
+            snapshot = await self.prices.get(self.owner_id, self.item_id, self.price_type)
         except Exception as exc:
-            await interaction.followup.send(
-                _friendly_error(exc), ephemeral=True
-            )
+            await interaction.followup.send(_friendly_error(exc), ephemeral=True)
             return
         await interaction.followup.send(
             embed=_price_embed(snapshot, self.icons.display_name(self.item_id)),
@@ -366,11 +362,11 @@ class DonutCommands(commands.Cog):
             return []
         needle = str(current).strip()
         return [
-            app_commands.Choice(
-                name=f"#{rule.id} {rule.display_name}"[:100], value=rule.id
-            )
+            app_commands.Choice(name=f"#{rule.id} {rule.display_name}"[:100], value=rule.id)
             for rule in rules
-            if not needle or needle in str(rule.id) or needle.casefold() in rule.display_name.casefold()
+            if not needle
+            or needle in str(rule.id)
+            or needle.casefold() in rule.display_name.casefold()
         ][:25]
 
     @app_commands.command(name="price", description="Получить текущую цену предмета")
@@ -408,9 +404,7 @@ class DonutCommands(commands.Cog):
     async def status(self, interaction: discord.Interaction) -> None:
         async with self.services.session_factory() as session:
             user = await UserRepository(session).get(interaction.user.id)
-            active_rules = await WatchRuleRepository(session).count_active(
-                interaction.user.id
-            )
+            active_rules = await WatchRuleRepository(session).count_active(interaction.user.id)
         authorized = user is not None and user.token_status is TokenStatus.VALID
         fingerprint = user.token_fingerprint if user else None
         remaining = (
@@ -418,16 +412,10 @@ class DonutCommands(commands.Cog):
             if fingerprint
             else 0
         )
-        reset_at = (
-            self.services.api.limiter.budget_reset_at(fingerprint)
-            if fingerprint
-            else None
-        )
+        reset_at = self.services.api.limiter.budget_reset_at(fingerprint) if fingerprint else None
         health = self.services.api.health
         embed = discord.Embed(title="Состояние DonutSMP Monitor", color=0x2ECC71)
-        embed.add_field(
-            name="Авторизация", value="активна" if authorized else "не настроена"
-        )
+        embed.add_field(name="Авторизация", value="активна" if authorized else "не настроена")
         embed.add_field(name="Активные правила", value=str(active_rules))
         embed.add_field(name="API-бюджет", value=f"≈ {remaining} запросов")
         embed.add_field(
@@ -455,18 +443,14 @@ class DonutCommands(commands.Cog):
     ) -> None:
         try:
             if action == "delete":
-                changed = await self.services.watches.delete(
-                    interaction.user.id, rule_id
-                )
+                changed = await self.services.watches.delete(interaction.user.id, rule_id)
                 success = "Правило удалено."
             else:
                 changed = await self.services.watches.set_enabled(
                     interaction.user.id, rule_id, enabled=action == "resume"
                 )
                 success = (
-                    "Правило возобновлено."
-                    if action == "resume"
-                    else "Правило приостановлено."
+                    "Правило возобновлено." if action == "resume" else "Правило приостановлено."
                 )
         except Exception as exc:
             await interaction.response.send_message(_friendly_error(exc), ephemeral=True)
@@ -530,9 +514,7 @@ def _price_embed(snapshot: PriceSnapshot, display_name: str) -> discord.Embed:
     return embed
 
 
-def _add_listing_fields(
-    embed: discord.Embed, listing: AuctionListing | None
-) -> None:
+def _add_listing_fields(embed: discord.Embed, listing: AuctionListing | None) -> None:
     if listing is None:
         embed.add_field(name="Лоты", value="Подходящих активных лотов нет.")
         return
@@ -617,4 +599,3 @@ def _friendly_error(error: Exception) -> str:
     if isinstance(error, discord.Forbidden):
         return "Discord запрещает отправку личных сообщений."
     return "Операция не выполнена из-за внутренней ошибки."
-

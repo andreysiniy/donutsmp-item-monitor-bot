@@ -3,6 +3,7 @@
 Revision ID: 0001
 Revises:
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -24,9 +25,7 @@ rule_state = sa.Enum(
     native_enum=False,
 )
 token_status = sa.Enum("valid", "invalid", name="tokenstatus", native_enum=False)
-delivery_status = sa.Enum(
-    "pending", "sent", "failed", name="deliverystatus", native_enum=False
-)
+delivery_status = sa.Enum("pending", "sent", "failed", name="deliverystatus", native_enum=False)
 
 
 def upgrade() -> None:
@@ -40,8 +39,12 @@ def upgrade() -> None:
         sa.Column("invalid_token_notified_at", sa.DateTime(timezone=True)),
         sa.Column("dm_error_count", sa.Integer(), server_default="0", nullable=False),
         sa.Column("last_dm_error", sa.String(255)),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
     )
     op.create_index("ix_users_token_fingerprint", "users", ["token_fingerprint"])
 
@@ -66,8 +69,12 @@ def upgrade() -> None:
         sa.Column("last_observed_price", sa.Numeric(30, 8)),
         sa.Column("last_checked_at", sa.DateTime(timezone=True)),
         sa.Column("last_triggered_at", sa.DateTime(timezone=True)),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
     )
     op.create_index("ix_watch_rules_discord_user_id", "watch_rules", ["discord_user_id"])
     op.create_index(
@@ -90,16 +97,16 @@ def upgrade() -> None:
         sa.Column("listing_price", sa.Numeric(30, 8)),
         sa.Column("item_count", sa.Integer()),
         sa.Column("seller_name", sa.String(255)),
-        sa.Column("observed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "observed_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
     )
     op.create_index(
         "ix_price_observations_item",
         "price_observations",
         ["discord_user_id", "item_id", "observed_at"],
     )
-    op.create_index(
-        "ix_price_observations_retention", "price_observations", ["observed_at"]
-    )
+    op.create_index("ix_price_observations_retention", "price_observations", ["observed_at"])
 
     op.create_table(
         "notifications",
@@ -115,7 +122,9 @@ def upgrade() -> None:
         sa.Column("delivery_status", delivery_status, nullable=False),
         sa.Column("discord_message_id", sa.BigInteger()),
         sa.Column("error_message", sa.String(255)),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
     )
     op.create_index(
         "ix_notifications_rule_created", "notifications", ["watch_rule_id", "created_at"]
@@ -127,4 +136,3 @@ def downgrade() -> None:
     op.drop_table("price_observations")
     op.drop_table("watch_rules")
     op.drop_table("users")
-

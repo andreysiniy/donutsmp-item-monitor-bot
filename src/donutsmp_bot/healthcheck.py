@@ -22,4 +22,3 @@ async def check() -> None:
 
 if __name__ == "__main__":
     asyncio.run(check())
-

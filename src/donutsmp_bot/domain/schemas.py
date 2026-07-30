@@ -72,4 +72,3 @@ class ApiHealth(BaseModel):
     available: bool = True
     last_error: str | None = None
     last_success_at: datetime | None = None
-

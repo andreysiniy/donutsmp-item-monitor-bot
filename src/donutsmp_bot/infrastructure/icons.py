@@ -82,4 +82,3 @@ class IconService:
     @property
     def size(self) -> int:
         return len(self._entries)
-

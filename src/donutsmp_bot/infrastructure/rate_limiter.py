@@ -105,8 +105,5 @@ def calculate_poll_interval(
 ) -> float:
     if unique_requests <= 0:
         return default_seconds
-    budget_interval = (
-        unique_requests * max(pages_per_request, 1) * 60 / safe_requests_per_minute
-    )
+    budget_interval = unique_requests * max(pages_per_request, 1) * 60 / safe_requests_per_minute
     return max(default_seconds, budget_interval)
-

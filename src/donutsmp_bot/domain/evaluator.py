@@ -59,9 +59,7 @@ def evaluate_threshold(
         )
     if previous_state is RuleState.NO_LISTINGS:
         return Evaluation(
-            RuleState.ABOVE_THRESHOLD
-            if current_price >= threshold
-            else RuleState.BELOW_THRESHOLD,
+            RuleState.ABOVE_THRESHOLD if current_price >= threshold else RuleState.BELOW_THRESHOLD,
             False,
         )
     if previous_state is RuleState.BELOW_THRESHOLD and current_price >= threshold:
@@ -79,4 +77,3 @@ def _cooldown_ready(
     if last_triggered_at.tzinfo is None:
         last_triggered_at = last_triggered_at.replace(tzinfo=UTC)
     return now >= last_triggered_at + timedelta(seconds=cooldown_seconds)
-

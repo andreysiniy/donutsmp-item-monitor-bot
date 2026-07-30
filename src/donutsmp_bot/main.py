@@ -23,8 +23,7 @@ async def async_main() -> None:
     database = Database(settings.database_url)
     limiter = PerTokenRateLimiter(
         monitoring_limit=settings.safe_requests_per_minute,
-        hard_limit=settings.safe_requests_per_minute
-        + settings.reserved_requests_per_minute,
+        hard_limit=settings.safe_requests_per_minute + settings.reserved_requests_per_minute,
     )
     api = DonutApiClient(
         base_url=settings.donut_api_base_url,
@@ -78,4 +77,3 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
-

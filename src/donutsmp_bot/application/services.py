@@ -81,9 +81,7 @@ class AuthService:
         await self.api.validate_token(token, fingerprint)
         encrypted = self.cipher.encrypt(token)
         async with self.session_factory.begin() as session:
-            await UserRepository(session).save_valid_token(
-                discord_user_id, encrypted, fingerprint
-            )
+            await UserRepository(session).save_valid_token(discord_user_id, encrypted, fingerprint)
         return fingerprint
 
     async def logout(self, discord_user_id: int) -> bool:
@@ -188,17 +186,11 @@ class RuleProcessor:
                 error_name,
             )
             async with self.session_factory.begin() as session:
-                await NotificationRepository(session).mark_failed(
-                    notification_id, error_name
-                )
-                await UserRepository(session).record_dm_error(
-                    event.discord_user_id, error_name
-                )
+                await NotificationRepository(session).mark_failed(notification_id, error_name)
+                await UserRepository(session).record_dm_error(event.discord_user_id, error_name)
         else:
             async with self.session_factory.begin() as session:
-                await NotificationRepository(session).mark_sent(
-                    notification_id, message_id
-                )
+                await NotificationRepository(session).mark_sent(notification_id, message_id)
                 await UserRepository(session).clear_dm_error(event.discord_user_id)
 
 
@@ -243,21 +235,24 @@ class WatchService:
                 condition=condition,
                 threshold=parsed_threshold,
                 price_type=price_type,
-                hysteresis_percent=Decimal(
-                    str(self.settings.default_hysteresis_percent)
-                ),
+                hysteresis_percent=Decimal(str(self.settings.default_hysteresis_percent)),
                 cooldown_seconds=self.settings.default_notification_cooldown_seconds,
             )
             token = self.cipher.decrypt(user.encrypted_donut_token)
             fingerprint = user.token_fingerprint
 
-        snapshot = await self.api.get_price(
-            token=token,
-            token_key=fingerprint,
-            item_id=normalized_item_id,
-            price_type=price_type,
-            interactive=True,
-        )
+        try:
+            snapshot = await self.api.get_price(
+                token=token,
+                token_key=fingerprint,
+                item_id=normalized_item_id,
+                price_type=price_type,
+                interactive=True,
+            )
+        except Exception:
+            async with self.session_factory.begin() as session:
+                await WatchRuleRepository(session).delete(discord_user_id, rule.id)
+            raise
         await self.processor.process(
             discord_user_id=discord_user_id,
             rules=[rule],
@@ -276,14 +271,10 @@ class WatchService:
             await _require_valid_user(session, discord_user_id)
             return await WatchRuleRepository(session).delete(discord_user_id, rule_id)
 
-    async def set_enabled(
-        self, discord_user_id: int, rule_id: int, *, enabled: bool
-    ) -> bool:
+    async def set_enabled(self, discord_user_id: int, rule_id: int, *, enabled: bool) -> bool:
         async with self.session_factory.begin() as session:
             await _require_valid_user(session, discord_user_id)
-            return await WatchRuleRepository(session).set_enabled(
-                discord_user_id, rule_id, enabled
-            )
+            return await WatchRuleRepository(session).set_enabled(discord_user_id, rule_id, enabled)
 
 
 class PriceService:
@@ -300,9 +291,7 @@ class PriceService:
         self.cipher = cipher
         self.icons = icons
 
-    async def get(
-        self, discord_user_id: int, item_id: str, price_type: PriceType
-    ) -> PriceSnapshot:
+    async def get(self, discord_user_id: int, item_id: str, price_type: PriceType) -> PriceSnapshot:
         normalized = item_id.strip().lower()
         if not self.icons.contains(normalized):
             raise InvalidItemError("Unknown Minecraft item ID")

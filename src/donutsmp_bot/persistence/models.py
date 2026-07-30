@@ -18,8 +18,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from ..core.enums import Condition, DeliveryStatus, PriceType, RuleState, TokenStatus
 
+SupportedEnum = (
+    type[Condition] | type[DeliveryStatus] | type[PriceType] | type[RuleState] | type[TokenStatus]
+)
 
-def enum_column(enum_type: type[Condition] | type[DeliveryStatus] | type[PriceType] | type[RuleState] | type[TokenStatus]) -> Enum:  # type: ignore[type-arg]
+
+def enum_column(enum_type: SupportedEnum) -> Enum:
     return Enum(
         enum_type,
         values_callable=lambda members: [member.value for member in members],
@@ -157,4 +161,3 @@ class Notification(Base):
     )
 
     watch_rule: Mapped[WatchRule] = relationship(back_populates="notifications")
-
