@@ -101,7 +101,8 @@ async def test_monitoring_deduplicates_requests_and_triggers_each_rule(database)
     await coordinator.run_once()
     assert len(api.calls) == 2
     assert len(sender.alerts) == 2
-    assert {event.rule_id for event in sender.alerts} == {1, 2}
+    assert {event.database_rule_id for event in sender.alerts} == {1, 2}
+    assert {event.display_rule_id for event in sender.alerts} == {1, 2}
 
     async with database.session_factory() as session:
         observations = await session.scalar(select(func.count()).select_from(PriceObservation))

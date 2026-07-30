@@ -15,6 +15,7 @@ from ..application.monitoring import MonitoringCoordinator
 from ..application.services import (
     AlertEvent,
     AuthService,
+    DisplayedRule,
     InvalidItemError,
     InvalidThresholdError,
     NotAuthenticatedError,
@@ -33,7 +34,6 @@ from ..infrastructure.donut_api import (
     format_decimal_price,
 )
 from ..infrastructure.icons import IconService
-from ..persistence.models import WatchRule
 from ..persistence.repositories import UserRepository, WatchRuleRepository
 
 logger = logging.getLogger(__name__)
@@ -146,7 +146,7 @@ class AlertActionsView(discord.ui.View):
         self,
         *,
         owner_id: int,
-        rule_id: int,
+        database_rule_id: int,
         item_id: str,
         price_type: PriceType,
         watches: WatchService,
@@ -155,7 +155,7 @@ class AlertActionsView(discord.ui.View):
     ) -> None:
         super().__init__(timeout=None)
         self.owner_id = owner_id
-        self.rule_id = rule_id
+        self.database_rule_id = database_rule_id
         self.item_id = item_id
         self.price_type = price_type
         self.watches = watches
@@ -176,7 +176,9 @@ class AlertActionsView(discord.ui.View):
         custom_id="donutsmp:pause",
     )
     async def pause(self, interaction: discord.Interaction, button: discord.ui.Button[Any]) -> None:
-        changed = await self.watches.set_enabled(self.owner_id, self.rule_id, enabled=False)
+        changed = await self.watches.set_enabled_by_database_id(
+            self.owner_id, self.database_rule_id, enabled=False
+        )
         button.disabled = True
         await interaction.response.edit_message(view=self)
         await interaction.followup.send(
@@ -192,7 +194,9 @@ class AlertActionsView(discord.ui.View):
     async def delete(
         self, interaction: discord.Interaction, button: discord.ui.Button[Any]
     ) -> None:
-        deleted = await self.watches.delete(self.owner_id, self.rule_id)
+        deleted = await self.watches.delete_by_database_id(
+            self.owner_id, self.database_rule_id
+        )
         for child in self.children:
             child.disabled = True  # type: ignore[attr-defined]
         await interaction.response.edit_message(view=self)
@@ -244,7 +248,7 @@ class DiscordNotificationSender(NotificationSender):
         embed.set_thumbnail(url=f"attachment://{icon_path.name}")
         view = AlertActionsView(
             owner_id=event.discord_user_id,
-            rule_id=event.rule_id,
+            database_rule_id=event.database_rule_id,
             item_id=event.item_id,
             price_type=event.snapshot.price_type,
             watches=self._watches,
@@ -324,7 +328,7 @@ class DonutCommands(commands.Cog):
     ) -> None:
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            rule, snapshot = await self.services.watches.add(
+            displayed_rule, snapshot = await self.services.watches.add(
                 discord_user_id=interaction.user.id,
                 item_id=item,
                 condition=Condition(condition.value),
@@ -334,9 +338,10 @@ class DonutCommands(commands.Cog):
         except Exception as exc:
             await interaction.edit_original_response(content=_friendly_error(exc))
             return
+        rule = displayed_rule.rule
         await interaction.edit_original_response(
             content=(
-                f"Rule **#{rule.id}** created: {rule.display_name}, "
+                f"Rule **#{displayed_rule.display_id}** created: {rule.display_name}, "
                 f"{_condition_symbol(rule.condition)} {format_decimal_price(rule.threshold)}.\n"
                 f"Current price: **{format_decimal_price(snapshot.selected_price)}**."
             )
@@ -358,24 +363,27 @@ class DonutCommands(commands.Cog):
         if not rules:
             text = "You do not have any monitoring rules yet."
         else:
-            text = "\n\n".join(_format_rule(rule) for rule in rules)
+            text = "\n\n".join(_format_rule(displayed_rule) for displayed_rule in rules)
         await interaction.response.send_message(text[:2000], ephemeral=True)
 
     @watch.command(name="delete", description="Delete a rule")
-    async def watch_delete(self, interaction: discord.Interaction, rule_id: int) -> None:
-        await self._change_rule(interaction, rule_id, action="delete")
+    @app_commands.describe(rule_number="Rule number shown by /watch list")
+    async def watch_delete(self, interaction: discord.Interaction, rule_number: int) -> None:
+        await self._change_rule(interaction, rule_number, action="delete")
 
     @watch.command(name="pause", description="Pause a rule")
-    async def watch_pause(self, interaction: discord.Interaction, rule_id: int) -> None:
-        await self._change_rule(interaction, rule_id, action="pause")
+    @app_commands.describe(rule_number="Rule number shown by /watch list")
+    async def watch_pause(self, interaction: discord.Interaction, rule_number: int) -> None:
+        await self._change_rule(interaction, rule_number, action="pause")
 
     @watch.command(name="resume", description="Resume a rule")
-    async def watch_resume(self, interaction: discord.Interaction, rule_id: int) -> None:
-        await self._change_rule(interaction, rule_id, action="resume")
+    @app_commands.describe(rule_number="Rule number shown by /watch list")
+    async def watch_resume(self, interaction: discord.Interaction, rule_number: int) -> None:
+        await self._change_rule(interaction, rule_number, action="resume")
 
-    @watch_delete.autocomplete("rule_id")
-    @watch_pause.autocomplete("rule_id")
-    @watch_resume.autocomplete("rule_id")
+    @watch_delete.autocomplete("rule_number")
+    @watch_pause.autocomplete("rule_number")
+    @watch_resume.autocomplete("rule_number")
     async def rule_autocomplete(
         self, interaction: discord.Interaction, current: str
     ) -> list[app_commands.Choice[int]]:
@@ -385,11 +393,14 @@ class DonutCommands(commands.Cog):
             return []
         needle = str(current).strip()
         return [
-            app_commands.Choice(name=f"#{rule.id} {rule.display_name}"[:100], value=rule.id)
-            for rule in rules
+            app_commands.Choice(
+                name=f"#{displayed_rule.display_id} {displayed_rule.rule.display_name}"[:100],
+                value=displayed_rule.display_id,
+            )
+            for displayed_rule in rules
             if not needle
-            or needle in str(rule.id)
-            or needle.casefold() in rule.display_name.casefold()
+            or needle in str(displayed_rule.display_id)
+            or needle.casefold() in displayed_rule.rule.display_name.casefold()
         ][:25]
 
     @app_commands.command(name="price", description="Get the current item price")
@@ -462,15 +473,17 @@ class DonutCommands(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     async def _change_rule(
-        self, interaction: discord.Interaction, rule_id: int, *, action: str
+        self, interaction: discord.Interaction, rule_number: int, *, action: str
     ) -> None:
         try:
             if action == "delete":
-                changed = await self.services.watches.delete(interaction.user.id, rule_id)
+                changed = await self.services.watches.delete(
+                    interaction.user.id, rule_number
+                )
                 success = "Rule deleted."
             else:
                 changed = await self.services.watches.set_enabled(
-                    interaction.user.id, rule_id, enabled=action == "resume"
+                    interaction.user.id, rule_number, enabled=action == "resume"
                 )
                 success = "Rule resumed." if action == "resume" else "Rule paused."
         except Exception as exc:
@@ -519,7 +532,7 @@ def _alert_embed(event: AlertEvent) -> discord.Embed:
     )
     _add_listing_fields(embed, event.snapshot.listing)
     embed.add_field(name="Item", value=event.item_id, inline=False)
-    embed.add_field(name="Rule", value=f"#{event.rule_id}")
+    embed.add_field(name="Rule", value=f"#{event.display_rule_id}")
     return embed
 
 
@@ -569,11 +582,12 @@ def _safe_value(value: Any) -> str:
     return discord.utils.escape_markdown(text[:1024]) or "—"
 
 
-def _format_rule(rule: WatchRule) -> str:
+def _format_rule(displayed_rule: DisplayedRule) -> str:
+    rule = displayed_rule.rule
     checked = _discord_time(rule.last_checked_at)
     enabled = "active" if rule.enabled else "paused"
     return (
-        f"**#{rule.id} {rule.display_name}**\n"
+        f"**#{displayed_rule.display_id} {rule.display_name}**\n"
         f"Condition: price {_condition_symbol(rule.condition)} "
         f"{format_decimal_price(rule.threshold)}\n"
         f"Current price: {format_decimal_price(rule.last_observed_price)}\n"
