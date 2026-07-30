@@ -225,9 +225,9 @@ class DonutApiClient:
                 raise DonutResponseError("DonutSMP returned invalid JSON") from exc
             if not isinstance(payload, dict):
                 raise DonutResponseError("DonutSMP response is not an object")
-            if payload.get("status") != 0:
+            if not _is_success_api_status(payload.get("status"), response.status_code):
                 metrics.last_error = "api_status"
-                raise DonutResponseError("DonutSMP returned a non-zero API status")
+                raise DonutResponseError("DonutSMP returned an unexpected API status")
 
             now = datetime.now(UTC)
             metrics.last_success_at = now
@@ -259,6 +259,12 @@ def _parse_retry_after(value: str | None) -> float:
             return max((parsed - now).total_seconds(), 0)
         except (TypeError, ValueError):
             return 1
+
+
+def _is_success_api_status(value: Any, http_status: int) -> bool:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return False
+    return 200 <= http_status < 300 and value in {0, http_status}
 
 
 def format_decimal_price(value: Decimal | None) -> str:

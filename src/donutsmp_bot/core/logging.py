@@ -14,16 +14,22 @@ def redact_secrets(value: str) -> str:
     return _TOKEN_FIELD_PATTERN.sub(r"\1\2[REDACTED]", value)
 
 
+def _redact_log_argument(value: Any) -> Any:
+    if isinstance(value, str):
+        return redact_secrets(value)
+    return value
+
+
 class SecretRedactionFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg = redact_secrets(str(record.msg))
         if record.args:
             if isinstance(record.args, MutableMapping):
                 record.args = {
-                    key: redact_secrets(str(value)) for key, value in record.args.items()
+                    key: _redact_log_argument(value) for key, value in record.args.items()
                 }
             else:
-                record.args = tuple(redact_secrets(str(value)) for value in record.args)
+                record.args = tuple(_redact_log_argument(value) for value in record.args)
         return True
 
 
