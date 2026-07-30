@@ -1,67 +1,66 @@
 # DonutSMP Discord Monitor
 
-Асинхронный Discord-бот отслеживает минимальную цену точного `item.id` на аукционе
-DonutSMP и отправляет личное уведомление при пересечении пользовательского порога.
-Штатный способ запуска — Docker Compose с PostgreSQL.
+An asynchronous Discord bot that monitors the lowest price for an exact `item.id`
+on the DonutSMP auction and sends a direct message when a user-defined threshold
+is crossed. The standard deployment uses Docker Compose and PostgreSQL.
 
-## Возможности
+## Features
 
-- `/auth` проверяет личный DonutSMP Bearer-токен и сохраняет только его Fernet-шифротекст;
-- `/watch add|list|delete|pause|resume` управляет правилами снижения и повышения цены;
-- `/price` выполняет разовую проверку без создания правила;
-- `/status` показывает авторизацию, правила, API-бюджет, доступность API и ошибки DM;
-- точное совпадение `minecraft:*`, цена лота или единицы, `Decimal` без `float`;
-- защита от повторов: конечный автомат, hysteresis 2% и cooldown 60 секунд;
-- дедупликация запросов по токену, предмету и типу цены;
-- sliding-window лимит 220 запросов/мин с резервом 30 интерактивных запросов;
-- отдельный backoff каждого токена для `429`, `5xx` и сетевых ошибок;
-- иконки блоков и предметов из приложенного Minecraft-манифеста;
-- состояние правил, наблюдения и доставка уведомлений сохраняются в PostgreSQL.
+- `/auth` validates a personal DonutSMP Bearer token and stores only its encrypted value;
+- `/watch add|list|delete|pause|resume` manages price-drop and price-rise rules;
+- `/price` performs a one-time price check without creating a rule;
+- `/status` shows authorization, active rules, API budget, API health, and DM errors;
+- exact `minecraft:*` matching, whole-listing or per-item prices, and `Decimal` arithmetic;
+- duplicate-notification protection with a state machine, 2% hysteresis, and cooldown;
+- request deduplication by token, item, and price type;
+- a 220-request sliding-window monitoring budget with 30 interactive requests reserved;
+- isolated per-token backoff for `429`, `5xx`, timeout, and connection errors;
+- block and item icons loaded from the supplied Minecraft manifest;
+- PostgreSQL persistence for users, rules, observations, and notification delivery.
 
-## Архитектура
+## Architecture
 
 ```text
 src/donutsmp_bot/
-├── core/            конфигурация, общие enum, шифрование и безопасные логи
-├── domain/          модели ответа API и чистый автомат пересечения порога
-├── application/     use cases и планировщик групп запросов по токенам
-├── infrastructure/  DonutSMP HTTP-клиент, rate limiter и индекс иконок
-├── persistence/     SQLAlchemy-модели, сессии и репозитории
-├── presentation/    Discord-команды, modal, views, embeds и lifecycle
+├── core/            configuration, shared enums, encryption, and safe logging
+├── domain/          API response models and pure threshold state machine
+├── application/     use cases and per-token monitoring orchestration
+├── infrastructure/  DonutSMP HTTP client, rate limiter, and icon index
+├── persistence/     SQLAlchemy models, sessions, and repositories
+├── presentation/    Discord commands, modals, views, embeds, and lifecycle
 └── main.py          composition root
 ```
 
-Зависимости направлены внутрь: доменная логика не знает о Discord, HTTP или базе
-данных. Ошибка одной token-группы не останавливает другие группы.
+Dependencies point inward: the domain layer does not know about Discord, HTTP, or
+the database. A failure in one token group does not stop any other group.
 
-## Подготовка Discord
+## Discord Setup
 
-1. Создайте приложение и бота в Discord Developer Portal.
-2. Пригласите бота со scopes `bot` и `applications.commands`.
-3. Скопируйте bot token в локальный `.env`. Не публикуйте его и не добавляйте `.env`
-   в Git.
-4. Пользовательский DonutSMP-токен вводится только через ephemeral-flow `/auth`.
+1. Create an application and bot in the Discord Developer Portal.
+2. Invite the bot with the `bot` and `applications.commands` scopes.
+3. Copy the bot token into a local `.env`. Never publish it or add `.env` to Git.
+4. Each user submits their personal DonutSMP token through the ephemeral `/auth` flow.
 
-Message Content Intent не требуется.
+Message Content Intent is not required.
 
-## Запуск в Docker
+## Docker Deployment
 
-Требуются Docker Engine и Docker Compose v2.
+Docker Engine and Docker Compose v2 are required.
 
 ```bash
 cp .env.example .env
 python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
 ```
 
-Заполните в `.env`:
+Set these values in `.env`:
 
 ```env
 DISCORD_BOT_TOKEN=<Discord bot token>
-TOKEN_ENCRYPTION_KEY=<результат команды выше>
-POSTGRES_PASSWORD=<случайный пароль для PostgreSQL>
+TOKEN_ENCRYPTION_KEY=<output of the command above>
+POSTGRES_PASSWORD=<random PostgreSQL password>
 ```
 
-Затем:
+Start the application:
 
 ```bash
 docker compose up -d --build
@@ -69,53 +68,51 @@ docker compose ps
 docker compose logs -f bot
 ```
 
-Контейнер бота ждёт healthcheck PostgreSQL, автоматически выполняет
-`alembic upgrade head`, затем запускает приложение под непривилегированным
-пользователем на read-only filesystem. Данные PostgreSQL хранятся в named volume
-`postgres_data`.
+The bot container waits for the PostgreSQL healthcheck, runs `alembic upgrade head`,
+and starts the application as an unprivileged user on a read-only filesystem.
+PostgreSQL data is stored in the `postgres_data` named volume.
 
-Остановка без удаления данных:
+Stop the application without deleting data:
 
 ```bash
 docker compose down
 ```
 
-Удаление окружения вместе с базой:
+Delete the environment and its database:
 
 ```bash
 docker compose down -v
 ```
 
-Последняя команда необратимо удаляет PostgreSQL volume.
+The final command permanently deletes the PostgreSQL volume.
 
-## Настройки
+## Configuration
 
-Все настройки читаются из переменных окружения. Полный безопасный шаблон находится
-в `.env.example`. В Docker `DATABASE_URL`, `MANIFEST_PATH` и `ASSETS_DIR`
-устанавливаются `compose.yaml`; секреты остаются в `.env`.
+All settings are read from environment variables. `.env.example` contains the full
+safe template. Docker sets `DATABASE_URL`, `MANIFEST_PATH`, and `ASSETS_DIR` in
+`compose.yaml`; secrets remain in `.env`.
 
-Основные значения:
-
-| Переменная | По умолчанию | Назначение |
+| Variable | Default | Purpose |
 |---|---:|---|
-| `SAFE_REQUESTS_PER_MINUTE` | `220` | бюджет фонового мониторинга на токен |
-| `RESERVED_REQUESTS_PER_MINUTE` | `30` | резерв `/price`, `/auth` и ручных действий |
-| `DEFAULT_POLL_INTERVAL_SECONDS` | `3` | минимальный интервал |
-| `MAX_SEARCH_PAGES` | `3` | максимальное число страниц поиска |
-| `DEFAULT_HYSTERESIS_PERCENT` | `2` | зона повторного взведения правила |
-| `DEFAULT_NOTIFICATION_COOLDOWN_SECONDS` | `60` | cooldown одного правила |
+| `SAFE_REQUESTS_PER_MINUTE` | `220` | background monitoring budget per token |
+| `RESERVED_REQUESTS_PER_MINUTE` | `30` | reserve for `/price`, `/auth`, and user actions |
+| `DEFAULT_POLL_INTERVAL_SECONDS` | `3` | minimum polling interval |
+| `MAX_SEARCH_PAGES` | `3` | maximum auction pages per search |
+| `DEFAULT_HYSTERESIS_PERCENT` | `2` | rule rearming margin |
+| `DEFAULT_NOTIFICATION_COOLDOWN_SECONDS` | `60` | per-rule notification cooldown |
 
-## Проверки
+## Quality Checks
 
-Локально, если нужен запуск тестов вне контейнера:
+For local checks outside Docker:
 
 ```bash
 python -m pip install -e ".[dev]"
 pytest
 ruff check .
+mypy src
 ```
 
-Миграции проверяются командой:
+Verify migrations with:
 
 ```bash
 alembic upgrade head
@@ -123,15 +120,12 @@ alembic downgrade base
 alembic upgrade head
 ```
 
-## Безопасность
+## Security
 
-- исходные токены не записываются в таблицы, логи, embeds и сообщения об ошибках;
-- ключ шифрования хранится отдельно от базы в окружении;
-- HTTP-заголовок Authorization создаётся только на время запроса конкретного
-  пользователя;
-- уведомления отправляются только владельцу соответствующего токена;
-- при `401/403` токен инвалидируется, правила останавливаются, одно DM просит
-  повторить `/auth`;
-- закрытые DM фиксируются в БД и показываются владельцу через `/status`;
-- публичная отправка уведомлений и автоматическая покупка не реализованы.
-
+- raw tokens are never written to tables, logs, embeds, or error messages;
+- the encryption key is stored separately from the database in the environment;
+- the Authorization header exists only for a request made with its owner's token;
+- notifications are sent only to the Discord owner of the corresponding token;
+- `401/403` invalidates the token, pauses its rules, and sends one reauthorization DM;
+- closed DMs are recorded and shown to the owner through `/status`;
+- public-channel notifications and automatic purchasing are intentionally unsupported.
