@@ -50,6 +50,7 @@ Docker Engine and Docker Compose v2 are required.
 ```bash
 cp .env.example .env
 python -c "import base64,secrets; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 Set these values in `.env`:
@@ -57,7 +58,7 @@ Set these values in `.env`:
 ```env
 DISCORD_BOT_TOKEN=<Discord bot token>
 TOKEN_ENCRYPTION_KEY=<output of the command above>
-POSTGRES_PASSWORD=<random PostgreSQL password>
+POSTGRES_PASSWORD=<output of the second command>
 ```
 
 Start the application:
@@ -85,6 +86,35 @@ docker compose down -v
 ```
 
 The final command permanently deletes the PostgreSQL volume.
+
+### Database Password Recovery
+
+PostgreSQL applies `POSTGRES_PASSWORD` only when it initializes a new data volume.
+Changing the value in `.env` later does not update the password of the existing
+database role. The authenticated PostgreSQL healthcheck detects this mismatch
+before the bot starts.
+
+If the database contains data that must be preserved, update the role interactively:
+
+```bash
+docker compose exec postgres psql -U donutsmp -d donutsmp -c '\password donutsmp'
+```
+
+Enter the current `POSTGRES_PASSWORD` value from `.env` twice, then recreate the
+services without deleting the volume:
+
+```bash
+docker compose up -d --build --force-recreate
+```
+
+If the database is disposable, initialize a new volume instead:
+
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+Never use `down -v` when the existing database must be retained.
 
 ## Configuration
 

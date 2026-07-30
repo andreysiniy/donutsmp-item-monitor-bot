@@ -5,11 +5,15 @@ services:
     environment:
       POSTGRES_DB: donutsmp
       POSTGRES_USER: donutsmp
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-donutsmp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env before starting Docker Compose}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U donutsmp -d donutsmp"]
+      test:
+        [
+          "CMD-SHELL",
+          "PGPASSWORD=$$POSTGRES_PASSWORD psql -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB -c 'SELECT 1' >/dev/null",
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -24,7 +28,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+asyncpg://donutsmp:${POSTGRES_PASSWORD:-donutsmp}@postgres:5432/donutsmp
+      DATABASE_URL: postgresql+asyncpg://donutsmp:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env before starting Docker Compose}@postgres:5432/donutsmp
       MANIFEST_PATH: /app/assets/manifest_detailed.json
       ASSETS_DIR: /app/assets
     depends_on:
@@ -46,4 +50,3 @@ services:
 
 volumes:
   postgres_data:
-
