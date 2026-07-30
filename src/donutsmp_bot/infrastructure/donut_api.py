@@ -13,6 +13,7 @@ import httpx
 from pydantic import ValidationError
 
 from ..core.enums import PriceType
+from ..core.item_ids import normalize_item_id
 from ..domain.schemas import ApiHealth, AuctionListing, PriceSnapshot
 from .rate_limiter import PerTokenRateLimiter
 
@@ -105,7 +106,8 @@ class DonutApiClient:
         price_type: PriceType,
         interactive: bool = False,
     ) -> PriceSnapshot:
-        search = item_id.removeprefix("minecraft:")
+        normalized_item_id = normalize_item_id(item_id)
+        search = normalized_item_id
         exact_listings: list[AuctionListing] = []
         pages_scanned = 0
 
@@ -128,14 +130,17 @@ class DonutApiClient:
                 if not isinstance(raw_listing, dict):
                     continue
                 raw_item = raw_listing.get("item")
-                if not isinstance(raw_item, dict) or raw_item.get("id") != item_id:
+                if (
+                    not isinstance(raw_item, dict)
+                    or normalize_item_id(str(raw_item.get("id", ""))) != normalized_item_id
+                ):
                     continue
                 try:
                     exact_listings.append(AuctionListing.model_validate(raw_listing))
                 except ValidationError:
                     logger.warning(
                         "Ignoring malformed listing item_id=%s page=%s token_fingerprint=%s",
-                        item_id,
+                        normalized_item_id,
                         page,
                         token_key,
                     )
@@ -145,7 +150,7 @@ class DonutApiClient:
         checked_at = datetime.now(UTC)
         if not exact_listings:
             return PriceSnapshot(
-                item_id=item_id,
+                item_id=normalized_item_id,
                 price_type=price_type,
                 selected_price=None,
                 listing=None,
@@ -155,7 +160,7 @@ class DonutApiClient:
 
         listing = min(exact_listings, key=lambda item: item.selected_price(price_type))
         return PriceSnapshot(
-            item_id=item_id,
+            item_id=normalized_item_id,
             price_type=price_type,
             selected_price=listing.selected_price(price_type),
             listing=listing,

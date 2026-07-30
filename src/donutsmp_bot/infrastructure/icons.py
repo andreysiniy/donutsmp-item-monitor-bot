@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..core.item_ids import normalize_item_id
+
 
 @dataclass(frozen=True, slots=True)
 class IconEntry:
@@ -30,7 +32,7 @@ class IconService:
             for raw in raw_entries:
                 if not isinstance(raw, dict):
                     continue
-                item_id = str(raw.get("id", "")).strip()
+                item_id = normalize_item_id(str(raw.get("id", "")))
                 icon = str(raw.get("icon", "")).strip()
                 if not item_id or not icon:
                     continue
@@ -49,17 +51,18 @@ class IconService:
         self._entries = entries
 
     def icon_path(self, item_id: str) -> Path:
-        entry = self._entries.get(item_id)
+        entry = self._entries.get(normalize_item_id(item_id))
         if entry and entry.path.is_file():
             return entry.path
         return self._missing_path
 
     def display_name(self, item_id: str) -> str:
-        entry = self._entries.get(item_id)
-        return entry.display_name if entry else item_id
+        normalized = normalize_item_id(item_id)
+        entry = self._entries.get(normalized)
+        return entry.display_name if entry else normalized
 
     def contains(self, item_id: str) -> bool:
-        return item_id in self._entries
+        return normalize_item_id(item_id) in self._entries
 
     def autocomplete(self, query: str, limit: int = 25) -> list[IconEntry]:
         needle = query.casefold().strip()

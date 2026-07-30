@@ -14,7 +14,7 @@ async def test_user_rules_survive_transactions_and_logout_cascades(database) -> 
         user = await UserRepository(session).save_valid_token(123, "encrypted", "abcdef123456")
         rule = await WatchRuleRepository(session).create(
             discord_user_id=user.discord_user_id,
-            item_id="minecraft:diamond",
+            item_id="diamond",
             display_name="Diamond",
             condition=Condition.PRICE_DOWN,
             threshold=Decimal("100000"),

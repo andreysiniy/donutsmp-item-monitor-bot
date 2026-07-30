@@ -10,7 +10,7 @@ is crossed. The standard deployment uses Docker Compose and PostgreSQL.
 - `/watch add|list|delete|pause|resume` manages price-drop and price-rise rules;
 - `/price` performs a one-time price check without creating a rule;
 - `/status` shows authorization, active rules, API budget, API health, and DM errors;
-- exact `minecraft:*` matching, whole-listing or per-item prices, and `Decimal` arithmetic;
+- exact plain item ID matching, whole-listing or per-item prices, and `Decimal` arithmetic;
 - duplicate-notification protection with a state machine, 2% hysteresis, and cooldown;
 - request deduplication by token, item, and price type;
 - a 220-request sliding-window monitoring budget with 30 interactive requests reserved;

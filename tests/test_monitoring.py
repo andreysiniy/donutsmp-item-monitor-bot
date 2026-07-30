@@ -73,7 +73,7 @@ async def test_monitoring_deduplicates_requests_and_triggers_each_rule(database)
         for threshold in (Decimal("100"), Decimal("90")):
             await repository.create(
                 discord_user_id=42,
-                item_id="minecraft:diamond",
+                item_id="diamond",
                 display_name="Diamond",
                 condition=Condition.PRICE_DOWN,
                 threshold=threshold,

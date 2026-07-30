@@ -36,12 +36,12 @@ async def test_get_with_json_body_paginates_and_filters_exact_item() -> None:
         requests.append(request)
         page = int(request.url.path.rsplit("/", 1)[1])
         result = (
-            [{"item": {"id": "minecraft:diamond_block", "count": 1}, "price": 1}]
+            [{"item": {"id": "diamond_block", "count": 1}, "price": 1}]
             if page == 1
             else [
                 {
                     "item": {
-                        "id": "minecraft:diamond",
+                        "id": "diamond",
                         "count": 5,
                         "display_name": "Diamond",
                     },
@@ -50,7 +50,7 @@ async def test_get_with_json_body_paginates_and_filters_exact_item() -> None:
                     "time_left": 120,
                 },
                 {
-                    "item": {"id": "minecraft:diamond", "count": 2},
+                    "item": {"id": "diamond", "count": 2},
                     "price": 50000,
                     "seller": {"name": "CheaperUnit"},
                 },
@@ -63,7 +63,7 @@ async def test_get_with_json_body_paginates_and_filters_exact_item() -> None:
         snapshot = await client.get_price(
             token="private-token",
             token_key="fingerprint",
-            item_id="minecraft:diamond",
+            item_id="diamond",
             price_type=PriceType.PER_ITEM,
         )
     finally:
@@ -91,13 +91,39 @@ async def test_no_exact_listings_returns_null_price() -> None:
         snapshot = await client.get_price(
             token="token",
             token_key="key",
-            item_id="minecraft:diamond",
+            item_id="diamond",
             price_type=PriceType.TOTAL,
         )
     finally:
         await client.close()
     assert snapshot.selected_price is None
     assert snapshot.listing is None
+
+
+@pytest.mark.asyncio
+async def test_legacy_namespaced_item_id_matches_plain_api_item_id() -> None:
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json={
+                "status": 200,
+                "result": [{"item": {"id": "diamond", "count": 1}, "price": 25000}],
+            },
+        )
+    )
+    client = _client(transport)
+    try:
+        snapshot = await client.get_price(
+            token="token",
+            token_key="key",
+            item_id="minecraft:diamond",
+            price_type=PriceType.TOTAL,
+        )
+    finally:
+        await client.close()
+
+    assert snapshot.item_id == "diamond"
+    assert snapshot.selected_price == Decimal("25000")
 
 
 @pytest.mark.asyncio

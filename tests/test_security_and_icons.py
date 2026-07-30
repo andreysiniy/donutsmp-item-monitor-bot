@@ -49,8 +49,9 @@ def test_icon_service_unifies_blocks_items_and_falls_back() -> None:
     icons = IconService(root / "manifest_detailed.json", root)
     icons.load()
     assert icons.size >= 1600
+    assert icons.contains("diamond")
+    assert icons.contains("stone")
     assert icons.contains("minecraft:diamond")
-    assert icons.contains("minecraft:stone")
-    assert icons.icon_path("minecraft:diamond").name == "diamond.png"
+    assert icons.icon_path("diamond").name == "diamond.png"
     assert icons.icon_path("minecraft:not_real").name == "missingno.png"
-    assert any(entry.item_id == "minecraft:diamond" for entry in icons.autocomplete("diamond"))
+    assert any(entry.item_id == "diamond" for entry in icons.autocomplete("diamond"))
