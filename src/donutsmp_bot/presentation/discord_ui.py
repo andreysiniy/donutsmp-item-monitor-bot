@@ -49,10 +49,10 @@ class AppServices:
     monitoring: MonitoringCoordinator
 
 
-class AuthModal(discord.ui.Modal, title="Авторизация DonutSMP"):
+class AuthModal(discord.ui.Modal, title="DonutSMP Authorization"):
     token: discord.ui.TextInput[AuthModal] = discord.ui.TextInput(
-        label="Bearer-токен",
-        placeholder="Вставьте токен DonutSMP",
+        label="Bearer token",
+        placeholder="Paste your DonutSMP token",
         required=True,
         min_length=1,
         max_length=2000,
@@ -68,21 +68,22 @@ class AuthModal(discord.ui.Modal, title="Авторизация DonutSMP"):
             await self.auth_service.authenticate(interaction.user.id, str(self.token))
         except DonutAuthenticationError:
             await interaction.edit_original_response(
-                content="Токен отклонён DonutSMP. Проверьте его и повторите `/auth`."
+                content="DonutSMP rejected the token. Check it and run `/auth` again."
             )
         except DonutRateLimitError as exc:
             await interaction.edit_original_response(
                 content=(
-                    f"DonutSMP временно ограничил запросы. Повторите через {exc.retry_after:.0f} с."
+                    "DonutSMP temporarily rate-limited requests. "
+                    f"Try again in {exc.retry_after:.0f} seconds."
                 )
             )
         except DonutTransientError:
             await interaction.edit_original_response(
-                content="DonutSMP сейчас недоступен. Токен не сохранён; попробуйте позже."
+                content="DonutSMP is unavailable. The token was not saved; try again later."
             )
         else:
             await interaction.edit_original_response(
-                content="Авторизация успешна. Токен проверен и сохранён в зашифрованном виде."
+                content="Authorization succeeded. The verified token was stored encrypted."
             )
 
 
@@ -95,10 +96,12 @@ class LogoutView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.owner_id:
             return True
-        await interaction.response.send_message("Это подтверждение не для вас.", ephemeral=True)
+        await interaction.response.send_message(
+            "This confirmation does not belong to you.", ephemeral=True
+        )
         return False
 
-    @discord.ui.button(label="Удалить токен и правила", style=discord.ButtonStyle.danger)
+    @discord.ui.button(label="Delete token and rules", style=discord.ButtonStyle.danger)
     async def confirm(
         self, interaction: discord.Interaction, button: discord.ui.Button[Any]
     ) -> None:
@@ -106,19 +109,19 @@ class LogoutView(discord.ui.View):
         for child in self.children:
             child.disabled = True  # type: ignore[attr-defined]
         message = (
-            "Токен и все правила мониторинга удалены."
+            "The token and all monitoring rules were deleted."
             if deleted
-            else "Сохранённого токена уже нет."
+            else "There is no stored token."
         )
         await interaction.response.edit_message(content=message, view=self)
 
-    @discord.ui.button(label="Отмена", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
     async def cancel(
         self, interaction: discord.Interaction, button: discord.ui.Button[Any]
     ) -> None:
         for child in self.children:
             child.disabled = True  # type: ignore[attr-defined]
-        await interaction.response.edit_message(content="Удаление отменено.", view=self)
+        await interaction.response.edit_message(content="Deletion cancelled.", view=self)
 
 
 class AlertActionsView(discord.ui.View):
@@ -145,11 +148,13 @@ class AlertActionsView(discord.ui.View):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id == self.owner_id:
             return True
-        await interaction.response.send_message("Это уведомление не для вас.", ephemeral=True)
+        await interaction.response.send_message(
+            "This notification does not belong to you.", ephemeral=True
+        )
         return False
 
     @discord.ui.button(
-        label="Остановить наблюдение",
+        label="Pause monitoring",
         style=discord.ButtonStyle.secondary,
         custom_id="donutsmp:pause",
     )
@@ -158,12 +163,12 @@ class AlertActionsView(discord.ui.View):
         button.disabled = True
         await interaction.response.edit_message(view=self)
         await interaction.followup.send(
-            "Правило приостановлено." if changed else "Правило уже недоступно.",
+            "Rule paused." if changed else "The rule is no longer available.",
             ephemeral=True,
         )
 
     @discord.ui.button(
-        label="Удалить правило",
+        label="Delete rule",
         style=discord.ButtonStyle.danger,
         custom_id="donutsmp:delete",
     )
@@ -175,11 +180,12 @@ class AlertActionsView(discord.ui.View):
             child.disabled = True  # type: ignore[attr-defined]
         await interaction.response.edit_message(view=self)
         await interaction.followup.send(
-            "Правило удалено." if deleted else "Правило уже удалено.", ephemeral=True
+            "Rule deleted." if deleted else "The rule has already been deleted.",
+            ephemeral=True,
         )
 
     @discord.ui.button(
-        label="Показать текущую цену",
+        label="Show current price",
         style=discord.ButtonStyle.primary,
         custom_id="donutsmp:price",
     )
@@ -236,59 +242,59 @@ class DiscordNotificationSender(NotificationSender):
         if user is None:
             user = await self.bot.fetch_user(discord_user_id)
         await user.send(
-            "DonutSMP отклонил сохранённый токен. Все правила приостановлены; выполните `/auth`."
+            "DonutSMP rejected the stored token. All rules were paused; run `/auth` again."
         )
 
 
 class DonutCommands(commands.Cog):
-    watch = app_commands.Group(name="watch", description="Управление наблюдениями")
+    watch = app_commands.Group(name="watch", description="Manage price monitoring rules")
 
     def __init__(self, services: AppServices) -> None:
         self.services = services
 
-    @app_commands.command(name="start", description="Инструкция и состояние авторизации")
+    @app_commands.command(name="start", description="Show instructions and authorization status")
     async def start(self, interaction: discord.Interaction) -> None:
         user = await self.services.auth.get_user(interaction.user.id)
         authorized = user is not None and user.token_status is TokenStatus.VALID
-        state = "авторизован" if authorized else "не авторизован"
+        state = "authorized" if authorized else "not authorized"
         await interaction.response.send_message(
-            "Бот следит за минимальной ценой лотов DonutSMP и пишет в личные сообщения "
-            "только при пересечении порога.\n\n"
-            f"Состояние: **{state}**\n"
-            "1. `/auth` — сохранить токен.\n"
-            "2. `/watch add` — создать правило.\n"
-            "3. `/watch list` — посмотреть правила.\n"
-            "4. `/price` — узнать цену без правила.",
+            "The bot monitors the lowest DonutSMP listing price and sends a direct message "
+            "only when a configured threshold is crossed.\n\n"
+            f"Status: **{state}**\n"
+            "1. `/auth` — store a token.\n"
+            "2. `/watch add` — create a rule.\n"
+            "3. `/watch list` — view your rules.\n"
+            "4. `/price` — check a price without creating a rule.",
             ephemeral=True,
         )
 
-    @app_commands.command(name="auth", description="Сохранить Bearer-токен DonutSMP")
+    @app_commands.command(name="auth", description="Store a DonutSMP Bearer token")
     async def auth(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_modal(AuthModal(self.services.auth))
 
-    @app_commands.command(name="logout", description="Удалить токен и все правила")
+    @app_commands.command(name="logout", description="Delete the token and all rules")
     async def logout(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_message(
-            "Удалить сохранённый токен и все связанные правила?",
+            "Delete the stored token and all associated monitoring rules?",
             view=LogoutView(interaction.user.id, self.services.auth),
             ephemeral=True,
         )
 
-    @watch.command(name="add", description="Добавить правило наблюдения")
+    @watch.command(name="add", description="Add a monitoring rule")
     @app_commands.describe(
-        item="ID предмета Minecraft",
-        condition="Направление пересечения",
-        threshold="Ценовой порог",
-        price_type="Цена лота или одной единицы",
+        item="Minecraft item ID",
+        condition="Threshold crossing direction",
+        threshold="Price threshold",
+        price_type="Whole listing price or per-item price",
     )
     @app_commands.choices(
         condition=[
-            app_commands.Choice(name="Цена не выше", value=Condition.PRICE_DOWN.value),
-            app_commands.Choice(name="Цена не ниже", value=Condition.PRICE_UP.value),
+            app_commands.Choice(name="Price at or below", value=Condition.PRICE_DOWN.value),
+            app_commands.Choice(name="Price at or above", value=Condition.PRICE_UP.value),
         ],
         price_type=[
-            app_commands.Choice(name="Цена всего лота", value=PriceType.TOTAL.value),
-            app_commands.Choice(name="Цена за единицу", value=PriceType.PER_ITEM.value),
+            app_commands.Choice(name="Whole listing price", value=PriceType.TOTAL.value),
+            app_commands.Choice(name="Price per item", value=PriceType.PER_ITEM.value),
         ],
     )
     async def watch_add(
@@ -313,9 +319,9 @@ class DonutCommands(commands.Cog):
             return
         await interaction.edit_original_response(
             content=(
-                f"Правило **#{rule.id}** создано: {rule.display_name}, "
+                f"Rule **#{rule.id}** created: {rule.display_name}, "
                 f"{_condition_symbol(rule.condition)} {format_decimal_price(rule.threshold)}.\n"
-                f"Текущая цена: **{format_decimal_price(snapshot.selected_price)}**."
+                f"Current price: **{format_decimal_price(snapshot.selected_price)}**."
             )
         )
 
@@ -325,7 +331,7 @@ class DonutCommands(commands.Cog):
     ) -> list[app_commands.Choice[str]]:
         return self._item_choices(current)
 
-    @watch.command(name="list", description="Показать правила наблюдения")
+    @watch.command(name="list", description="Show monitoring rules")
     async def watch_list(self, interaction: discord.Interaction) -> None:
         try:
             rules = await self.services.watches.list(interaction.user.id)
@@ -333,20 +339,20 @@ class DonutCommands(commands.Cog):
             await interaction.response.send_message(_friendly_error(exc), ephemeral=True)
             return
         if not rules:
-            text = "У вас пока нет правил."
+            text = "You do not have any monitoring rules yet."
         else:
             text = "\n\n".join(_format_rule(rule) for rule in rules)
         await interaction.response.send_message(text[:2000], ephemeral=True)
 
-    @watch.command(name="delete", description="Удалить правило")
+    @watch.command(name="delete", description="Delete a rule")
     async def watch_delete(self, interaction: discord.Interaction, rule_id: int) -> None:
         await self._change_rule(interaction, rule_id, action="delete")
 
-    @watch.command(name="pause", description="Приостановить правило")
+    @watch.command(name="pause", description="Pause a rule")
     async def watch_pause(self, interaction: discord.Interaction, rule_id: int) -> None:
         await self._change_rule(interaction, rule_id, action="pause")
 
-    @watch.command(name="resume", description="Возобновить правило")
+    @watch.command(name="resume", description="Resume a rule")
     async def watch_resume(self, interaction: discord.Interaction, rule_id: int) -> None:
         await self._change_rule(interaction, rule_id, action="resume")
 
@@ -369,11 +375,11 @@ class DonutCommands(commands.Cog):
             or needle.casefold() in rule.display_name.casefold()
         ][:25]
 
-    @app_commands.command(name="price", description="Получить текущую цену предмета")
+    @app_commands.command(name="price", description="Get the current item price")
     @app_commands.choices(
         price_type=[
-            app_commands.Choice(name="Цена всего лота", value=PriceType.TOTAL.value),
-            app_commands.Choice(name="Цена за единицу", value=PriceType.PER_ITEM.value),
+            app_commands.Choice(name="Whole listing price", value=PriceType.TOTAL.value),
+            app_commands.Choice(name="Price per item", value=PriceType.PER_ITEM.value),
         ]
     )
     async def price(
@@ -400,7 +406,7 @@ class DonutCommands(commands.Cog):
     ) -> list[app_commands.Choice[str]]:
         return self._item_choices(current)
 
-    @app_commands.command(name="status", description="Показать состояние сервиса")
+    @app_commands.command(name="status", description="Show service status")
     async def status(self, interaction: discord.Interaction) -> None:
         async with self.services.session_factory() as session:
             user = await UserRepository(session).get(interaction.user.id)
@@ -414,28 +420,28 @@ class DonutCommands(commands.Cog):
         )
         reset_at = self.services.api.limiter.budget_reset_at(fingerprint) if fingerprint else None
         health = self.services.api.health
-        embed = discord.Embed(title="Состояние DonutSMP Monitor", color=0x2ECC71)
-        embed.add_field(name="Авторизация", value="активна" if authorized else "не настроена")
-        embed.add_field(name="Активные правила", value=str(active_rules))
-        embed.add_field(name="API-бюджет", value=f"≈ {remaining} запросов")
+        embed = discord.Embed(title="DonutSMP Monitor Status", color=0x2ECC71)
+        embed.add_field(name="Authorization", value="active" if authorized else "not configured")
+        embed.add_field(name="Active rules", value=str(active_rules))
+        embed.add_field(name="API budget", value=f"≈ {remaining} requests")
         embed.add_field(
-            name="Последний успешный запрос",
+            name="Last successful request",
             value=_discord_time(user.last_successful_request_at if user else None),
         )
         embed.add_field(
-            name="Обновление бюджета",
+            name="Budget reset",
             value=_discord_time(reset_at),
         )
         embed.add_field(
             name="DonutSMP API",
-            value="доступен" if health.available else f"ошибка: {health.last_error}",
+            value="available" if health.available else f"error: {health.last_error}",
         )
         embed.add_field(
-            name="Ошибки личных сообщений",
+            name="Direct message errors",
             value=str(user.dm_error_count if user else 0),
         )
         if user and user.last_dm_error:
-            embed.add_field(name="Последняя ошибка DM", value=user.last_dm_error)
+            embed.add_field(name="Last DM error", value=user.last_dm_error)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     async def _change_rule(
@@ -444,19 +450,17 @@ class DonutCommands(commands.Cog):
         try:
             if action == "delete":
                 changed = await self.services.watches.delete(interaction.user.id, rule_id)
-                success = "Правило удалено."
+                success = "Rule deleted."
             else:
                 changed = await self.services.watches.set_enabled(
                     interaction.user.id, rule_id, enabled=action == "resume"
                 )
-                success = (
-                    "Правило возобновлено." if action == "resume" else "Правило приостановлено."
-                )
+                success = "Rule resumed." if action == "resume" else "Rule paused."
         except Exception as exc:
             await interaction.response.send_message(_friendly_error(exc), ephemeral=True)
             return
         await interaction.response.send_message(
-            success if changed else "Правило не найдено.", ephemeral=True
+            success if changed else "Rule not found.", ephemeral=True
         )
 
     def _item_choices(self, current: str) -> list[app_commands.Choice[str]]:
@@ -476,7 +480,7 @@ class DonutCommands(commands.Cog):
             interaction.user.id,
             type(error).__name__,
         )
-        message = "Команда не выполнена из-за внутренней ошибки."
+        message = "The command failed because of an internal error."
         if interaction.response.is_done():
             await interaction.followup.send(message, ephemeral=True)
         else:
@@ -484,58 +488,58 @@ class DonutCommands(commands.Cog):
 
 
 def _alert_embed(event: AlertEvent) -> discord.Embed:
-    direction = "снизилась" if event.condition is Condition.PRICE_DOWN else "повысилась"
+    direction = "dropped" if event.condition is Condition.PRICE_DOWN else "increased"
     emoji = "💰" if event.condition is Condition.PRICE_DOWN else "📈"
     embed = discord.Embed(
-        title=f"{emoji} Цена {event.display_name} {direction}",
+        title=f"{emoji} {event.display_name} price {direction}",
         color=0x2ECC71 if event.condition is Condition.PRICE_DOWN else 0x3498DB,
         timestamp=event.snapshot.checked_at,
     )
     embed.description = (
-        f"**Текущая цена:** {format_decimal_price(event.current_price)}\n"
-        f"**Заданный порог:** {format_decimal_price(event.threshold)}\n"
-        f"**Предыдущая цена:** {format_decimal_price(event.previous_price)}"
+        f"**Current price:** {format_decimal_price(event.current_price)}\n"
+        f"**Configured threshold:** {format_decimal_price(event.threshold)}\n"
+        f"**Previous price:** {format_decimal_price(event.previous_price)}"
     )
     _add_listing_fields(embed, event.snapshot.listing)
-    embed.add_field(name="Предмет", value=event.item_id, inline=False)
-    embed.add_field(name="Правило", value=f"#{event.rule_id}")
+    embed.add_field(name="Item", value=event.item_id, inline=False)
+    embed.add_field(name="Rule", value=f"#{event.rule_id}")
     return embed
 
 
 def _price_embed(snapshot: PriceSnapshot, display_name: str) -> discord.Embed:
     embed = discord.Embed(
-        title=f"Цена {display_name}",
+        title=f"{display_name} Price",
         description=f"**{format_decimal_price(snapshot.selected_price)}**",
         color=0xF1C40F,
         timestamp=snapshot.checked_at,
     )
     _add_listing_fields(embed, snapshot.listing)
-    embed.set_footer(text=f"{snapshot.item_id} • проверено страниц: {snapshot.pages_scanned}")
+    embed.set_footer(text=f"{snapshot.item_id} • pages checked: {snapshot.pages_scanned}")
     return embed
 
 
 def _add_listing_fields(embed: discord.Embed, listing: AuctionListing | None) -> None:
     if listing is None:
-        embed.add_field(name="Лоты", value="Подходящих активных лотов нет.")
+        embed.add_field(name="Listings", value="No matching active listings.")
         return
-    embed.add_field(name="Количество", value=str(listing.item.count))
-    embed.add_field(name="Общая цена", value=format_decimal_price(listing.price))
+    embed.add_field(name="Quantity", value=str(listing.item.count))
+    embed.add_field(name="Total price", value=format_decimal_price(listing.price))
     embed.add_field(
-        name="Цена за единицу",
+        name="Price per item",
         value=format_decimal_price(listing.price / Decimal(listing.item.count)),
     )
-    embed.add_field(name="Продавец", value=listing.seller.name)
-    embed.add_field(name="Осталось", value=_format_duration(listing.time_left))
+    embed.add_field(name="Seller", value=listing.seller.name)
+    embed.add_field(name="Time remaining", value=_format_duration(listing.time_left))
     if listing.item.enchants:
         embed.add_field(
-            name="Зачарования",
+            name="Enchantments",
             value=_safe_value(listing.item.enchants),
             inline=False,
         )
     if listing.item.trim:
-        embed.add_field(name="Отделка", value=_safe_value(listing.item.trim), inline=False)
+        embed.add_field(name="Trim", value=_safe_value(listing.item.trim), inline=False)
     if listing.item.lore:
-        embed.add_field(name="Описание", value=_safe_value(listing.item.lore), inline=False)
+        embed.add_field(name="Lore", value=_safe_value(listing.item.lore), inline=False)
 
 
 def _safe_value(value: Any) -> str:
@@ -550,14 +554,14 @@ def _safe_value(value: Any) -> str:
 
 def _format_rule(rule: WatchRule) -> str:
     checked = _discord_time(rule.last_checked_at)
-    enabled = "активно" if rule.enabled else "приостановлено"
+    enabled = "active" if rule.enabled else "paused"
     return (
         f"**#{rule.id} {rule.display_name}**\n"
-        f"Условие: цена {_condition_symbol(rule.condition)} "
+        f"Condition: price {_condition_symbol(rule.condition)} "
         f"{format_decimal_price(rule.threshold)}\n"
-        f"Текущая цена: {format_decimal_price(rule.last_observed_price)}\n"
-        f"Статус: {enabled}\n"
-        f"Последняя проверка: {checked}"
+        f"Current price: {format_decimal_price(rule.last_observed_price)}\n"
+        f"Status: {enabled}\n"
+        f"Last check: {checked}"
     )
 
 
@@ -567,7 +571,7 @@ def _condition_symbol(condition: Condition) -> str:
 
 def _discord_time(value: datetime | None) -> str:
     if value is None:
-        return "ещё не было"
+        return "never"
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
     return discord.utils.format_dt(value, style="R")
@@ -575,27 +579,27 @@ def _discord_time(value: datetime | None) -> str:
 
 def _format_duration(seconds: int | None) -> str:
     if seconds is None:
-        return "неизвестно"
+        return "unknown"
     if seconds < 60:
-        return f"{seconds} с"
+        return f"{seconds} sec"
     if seconds < 3600:
-        return f"{seconds // 60} мин"
-    return f"{seconds // 3600} ч {seconds % 3600 // 60} мин"
+        return f"{seconds // 60} min"
+    return f"{seconds // 3600} hr {seconds % 3600 // 60} min"
 
 
 def _friendly_error(error: Exception) -> str:
     if isinstance(error, NotAuthenticatedError):
-        return "Сначала выполните `/auth`."
+        return "Run `/auth` first."
     if isinstance(error, InvalidItemError):
-        return "Предмет отсутствует в Minecraft-манифесте."
+        return "The item is not present in the Minecraft manifest."
     if isinstance(error, InvalidThresholdError):
-        return "Порог должен быть положительным числом."
+        return "The threshold must be a positive number."
     if isinstance(error, DonutAuthenticationError):
-        return "DonutSMP отклонил токен. Выполните `/auth` заново."
+        return "DonutSMP rejected the token. Run `/auth` again."
     if isinstance(error, DonutRateLimitError):
-        return f"Лимит API исчерпан. Повторите через {error.retry_after:.0f} с."
+        return f"The API budget is exhausted. Try again in {error.retry_after:.0f} seconds."
     if isinstance(error, DonutTransientError):
-        return "DonutSMP временно недоступен; попробуйте позже."
+        return "DonutSMP is temporarily unavailable; try again later."
     if isinstance(error, discord.Forbidden):
-        return "Discord запрещает отправку личных сообщений."
-    return "Операция не выполнена из-за внутренней ошибки."
+        return "Discord blocked the direct message."
+    return "The operation failed because of an internal error."

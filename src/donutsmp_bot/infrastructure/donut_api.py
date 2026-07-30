@@ -263,7 +263,7 @@ def _parse_retry_after(value: str | None) -> float:
 
 def format_decimal_price(value: Decimal | None) -> str:
     if value is None:
-        return "нет лотов"
+        return "no listings"
     if value == value.to_integral_value():
         return f"{int(value):,}".replace(",", " ")
     return f"{value:,.2f}".replace(",", " ").rstrip("0").rstrip(".")
