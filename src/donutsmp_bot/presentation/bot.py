@@ -35,5 +35,12 @@ class DonutBot(commands.Bot):
         await super().close()
 
     async def on_ready(self) -> None:
+        await self.change_presence(
+            status=discord.Status.online,
+            activity=discord.Activity(
+                type=discord.ActivityType.watching,
+                name="DonutSMP auction prices",
+            ),
+        )
         if self.user is not None:
             logger.info("Discord bot ready user_id=%s", self.user.id)
