@@ -16,7 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from .enums import Condition, DeliveryStatus, PriceType, RuleState, TokenStatus
+from ..core.enums import Condition, DeliveryStatus, PriceType, RuleState, TokenStatus
 
 
 def enum_column(enum_type: type[Condition] | type[DeliveryStatus] | type[PriceType] | type[RuleState] | type[TokenStatus]) -> Enum:  # type: ignore[type-arg]

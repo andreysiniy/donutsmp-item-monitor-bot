@@ -12,9 +12,9 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
-from .enums import PriceType
+from ..core.enums import PriceType
+from ..domain.schemas import ApiHealth, AuctionListing, PriceSnapshot
 from .rate_limiter import PerTokenRateLimiter
-from .schemas import ApiHealth, AuctionListing, PriceSnapshot
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from .enums import (
+from ..core.enums import (
     Condition,
     DeliveryStatus,
     PriceType,

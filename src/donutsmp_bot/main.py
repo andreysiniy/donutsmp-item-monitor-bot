@@ -1,16 +1,16 @@
 import asyncio
 
-from .api import DonutApiClient
-from .bot import DonutBot
-from .config import get_settings
-from .database import Database
-from .discord_ui import AppServices, DiscordNotificationSender
-from .icons import IconService
-from .logging_config import configure_logging
-from .monitoring import MonitoringCoordinator
-from .rate_limiter import PerTokenRateLimiter
-from .security import TokenCipher
-from .services import AuthService, PriceService, RuleProcessor, WatchService
+from .application.monitoring import MonitoringCoordinator
+from .application.services import AuthService, PriceService, RuleProcessor, WatchService
+from .core.config import get_settings
+from .core.logging import configure_logging
+from .core.security import TokenCipher
+from .infrastructure.donut_api import DonutApiClient
+from .infrastructure.icons import IconService
+from .infrastructure.rate_limiter import PerTokenRateLimiter
+from .persistence.database import Database
+from .presentation.bot import DonutBot
+from .presentation.discord_ui import AppServices, DiscordNotificationSender
 
 
 async def async_main() -> None:
