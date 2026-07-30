@@ -52,7 +52,7 @@ async def test_failed_initial_check_does_not_leave_hidden_rule(database, fernet_
     with pytest.raises(DonutTransientError):
         await service.add(
             discord_user_id=7,
-            item_id="minecraft:diamond",
+            item_id="diamond",
             condition=Condition.PRICE_DOWN,
             threshold=Decimal("100"),
             price_type=PriceType.TOTAL,

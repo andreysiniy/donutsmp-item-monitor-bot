@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from ..core.config import Settings
 from ..core.enums import Condition, PriceType, TokenStatus
+from ..core.item_ids import normalize_item_id
 from ..core.security import TokenCipher, token_fingerprint
 from ..domain.evaluator import evaluate_threshold
 from ..domain.schemas import PriceSnapshot
@@ -221,7 +222,7 @@ class WatchService:
         threshold: str | int | Decimal,
         price_type: PriceType,
     ) -> tuple[WatchRule, PriceSnapshot]:
-        normalized_item_id = item_id.strip().lower()
+        normalized_item_id = normalize_item_id(item_id)
         if not self.icons.contains(normalized_item_id):
             raise InvalidItemError("Unknown Minecraft item ID")
         parsed_threshold = _positive_decimal(threshold)
@@ -292,7 +293,7 @@ class PriceService:
         self.icons = icons
 
     async def get(self, discord_user_id: int, item_id: str, price_type: PriceType) -> PriceSnapshot:
-        normalized = item_id.strip().lower()
+        normalized = normalize_item_id(item_id)
         if not self.icons.contains(normalized):
             raise InvalidItemError("Unknown Minecraft item ID")
         async with self.session_factory() as session:
