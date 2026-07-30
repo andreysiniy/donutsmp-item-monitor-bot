@@ -26,6 +26,11 @@ class AuctionItem(BaseModel):
             return 1
         return max(count, 1)
 
+    @field_validator("lore", mode="before")
+    @classmethod
+    def normalize_nullable_lore(cls, value: Any) -> Any:
+        return [] if value is None else value
+
 
 class AuctionSeller(BaseModel):
     model_config = ConfigDict(extra="allow")
