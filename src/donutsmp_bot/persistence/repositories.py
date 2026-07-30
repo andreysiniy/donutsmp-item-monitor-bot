@@ -1,8 +1,10 @@
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any, cast
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -44,8 +46,9 @@ class UserRepository:
         return user
 
     async def logout(self, discord_user_id: int) -> bool:
-        result = await self.session.execute(
-            delete(User).where(User.discord_user_id == discord_user_id)
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(delete(User).where(User.discord_user_id == discord_user_id)),
         )
         return bool(result.rowcount)
 
@@ -143,7 +146,8 @@ class WatchRuleRepository:
         )
         if lock:
             query = query.with_for_update()
-        return await self.session.scalar(query)
+        rule: WatchRule | None = await self.session.scalar(query)
+        return rule
 
     async def list_for_user(self, discord_user_id: int) -> Sequence[WatchRule]:
         result = await self.session.scalars(
@@ -166,22 +170,28 @@ class WatchRuleRepository:
         values: dict[str, object] = {"enabled": enabled}
         if enabled:
             values["current_state"] = RuleState.UNKNOWN
-        result = await self.session.execute(
-            update(WatchRule)
-            .where(
-                WatchRule.id == rule_id,
-                WatchRule.discord_user_id == discord_user_id,
-            )
-            .values(**values)
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                update(WatchRule)
+                .where(
+                    WatchRule.id == rule_id,
+                    WatchRule.discord_user_id == discord_user_id,
+                )
+                .values(**values)
+            ),
         )
         return bool(result.rowcount)
 
     async def delete(self, discord_user_id: int, rule_id: int) -> bool:
-        result = await self.session.execute(
-            delete(WatchRule).where(
-                WatchRule.id == rule_id,
-                WatchRule.discord_user_id == discord_user_id,
-            )
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                delete(WatchRule).where(
+                    WatchRule.id == rule_id,
+                    WatchRule.discord_user_id == discord_user_id,
+                )
+            ),
         )
         return bool(result.rowcount)
 
@@ -222,8 +232,11 @@ class ObservationRepository:
 
     async def prune(self, retention_days: int) -> int:
         cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-        result = await self.session.execute(
-            delete(PriceObservation).where(PriceObservation.observed_at < cutoff)
+        result = cast(
+            CursorResult[Any],
+            await self.session.execute(
+                delete(PriceObservation).where(PriceObservation.observed_at < cutoff)
+            ),
         )
         return int(result.rowcount or 0)
 
@@ -262,4 +275,3 @@ class NotificationRepository:
             .where(Notification.id == notification_id)
             .values(delivery_status=DeliveryStatus.FAILED, error_message=error[:255])
         )
-

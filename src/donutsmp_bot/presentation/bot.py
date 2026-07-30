@@ -37,4 +37,3 @@ class DonutBot(commands.Bot):
     async def on_ready(self) -> None:
         if self.user is not None:
             logger.info("Discord bot ready user_id=%s", self.user.id)
-

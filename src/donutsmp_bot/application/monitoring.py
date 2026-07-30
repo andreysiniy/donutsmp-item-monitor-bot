@@ -12,12 +12,12 @@ from ..core.enums import PriceType
 from ..core.security import TokenCipher, TokenDecryptionError
 from ..infrastructure.donut_api import (
     DonutApiClient,
-    DonutAuthenticationError,
     DonutApiError,
+    DonutAuthenticationError,
 )
 from ..infrastructure.rate_limiter import calculate_poll_interval
 from ..persistence.models import User, WatchRule
-from ..persistence.repositories import UserRepository
+from ..persistence.repositories import ObservationRepository, UserRepository
 from .services import NotificationSender, RuleProcessor
 
 logger = logging.getLogger(__name__)
@@ -43,6 +43,7 @@ class MonitoringCoordinator:
         self.settings = settings
         self._clock = clock
         self._next_poll_at: dict[int, float] = {}
+        self._last_prune_at: float | None = None
         self._task: asyncio.Task[None] | None = None
         self._stopping = asyncio.Event()
         self.last_successful_cycle_at: datetime | None = None
@@ -50,9 +51,7 @@ class MonitoringCoordinator:
     def start(self) -> None:
         if self._task is None or self._task.done():
             self._stopping.clear()
-            self._task = asyncio.create_task(
-                self.run_forever(), name="donutsmp-monitoring"
-            )
+            self._task = asyncio.create_task(self.run_forever(), name="donutsmp-monitoring")
 
     async def stop(self) -> None:
         self._stopping.set()
@@ -72,10 +71,15 @@ class MonitoringCoordinator:
                 pass
 
     async def run_once(self) -> None:
+        now = self._clock()
+        if self._last_prune_at is None or now - self._last_prune_at >= 86400:
+            async with self.session_factory.begin() as session:
+                await ObservationRepository(session).prune(self.settings.observation_retention_days)
+            self._last_prune_at = now
+
         async with self.session_factory() as session:
             users = await UserRepository(session).valid_users_with_rules()
 
-        now = self._clock()
         due_users = [
             user for user in users if self._next_poll_at.get(user.discord_user_id, 0) <= now
         ]

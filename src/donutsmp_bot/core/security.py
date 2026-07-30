@@ -31,4 +31,3 @@ class TokenCipher:
 
 def token_fingerprint(token: str) -> str:
     return hashlib.sha256(token.strip().encode("utf-8")).hexdigest()[:12]
-

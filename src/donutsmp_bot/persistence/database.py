@@ -1,7 +1,6 @@
 from collections.abc import AsyncIterator
 
 from sqlalchemy import event
-from sqlalchemy.engine import Engine
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -45,4 +44,3 @@ class Database:
 
 def metadata_for_migrations() -> type[Base]:
     return Base
-

@@ -1,7 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Self
 
-from pydantic import Field, PositiveFloat, PositiveInt, field_validator
+from pydantic import Field, PositiveFloat, PositiveInt, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +44,15 @@ class Settings(BaseSettings):
             return value.replace("postgresql://", "postgresql+asyncpg://", 1)
         return value
 
+    @model_validator(mode="after")
+    def validate_api_budget(self) -> Self:
+        if self.safe_requests_per_minute + self.reserved_requests_per_minute > 250:
+            raise ValueError(
+                "SAFE_REQUESTS_PER_MINUTE + RESERVED_REQUESTS_PER_MINUTE "
+                "must not exceed the DonutSMP limit of 250"
+            )
+        return self
+
     def validate_runtime_secrets(self) -> None:
         missing = []
         if not self.discord_bot_token:
@@ -56,4 +66,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
