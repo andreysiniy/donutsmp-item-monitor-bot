@@ -101,6 +101,19 @@ async def test_no_exact_listings_returns_null_price() -> None:
 
 
 @pytest.mark.asyncio
+async def test_validate_token_accepts_http_status_in_api_status_field() -> None:
+    client = _client(
+        httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"status": 200, "result": []})
+        )
+    )
+    try:
+        await client.validate_token("token", "fingerprint")
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("status", [401, 403])
 async def test_authentication_errors(status: int) -> None:
     client = _client(

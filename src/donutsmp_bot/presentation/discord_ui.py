@@ -28,6 +28,7 @@ from ..infrastructure.donut_api import (
     DonutApiClient,
     DonutAuthenticationError,
     DonutRateLimitError,
+    DonutResponseError,
     DonutTransientError,
     format_decimal_price,
 )
@@ -80,6 +81,22 @@ class AuthModal(discord.ui.Modal, title="DonutSMP Authorization"):
         except DonutTransientError:
             await interaction.edit_original_response(
                 content="DonutSMP is unavailable. The token was not saved; try again later."
+            )
+        except DonutResponseError:
+            await interaction.edit_original_response(
+                content=(
+                    "DonutSMP returned an unexpected response. "
+                    "The token was not saved; try again later."
+                )
+            )
+        except Exception as exc:
+            logger.error(
+                "Authorization failed user_id=%s error=%s",
+                interaction.user.id,
+                type(exc).__name__,
+            )
+            await interaction.edit_original_response(
+                content="Authorization failed because of an internal error. Try again later."
             )
         else:
             await interaction.edit_original_response(
